@@ -67,5 +67,21 @@
             android:layout_marginTop="8dp"
             android:text="Refresh photo and audio list" />
 
+        <TextView
+            android:id="@+id/tv_latest_photo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Latest photo: -"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tv_latest_audio"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Latest audio: -"
+            android:textSize="13sp" />
+
     </LinearLayout>
 </ScrollView>

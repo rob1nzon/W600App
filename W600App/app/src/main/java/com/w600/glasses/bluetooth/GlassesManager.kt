@@ -53,6 +53,11 @@ class GlassesManager private constructor(private val ctx: Context) {
     private val _mediaList = MutableStateFlow<List<MediaFile>>(emptyList())
     val mediaList: StateFlow<List<MediaFile>> = _mediaList
 
+    private val _audioList = MutableStateFlow<List<MediaFile>>(emptyList())
+    val audioList: StateFlow<List<MediaFile>> = _audioList
+    private var pendingMediaListType = "photo"
+    private var videoPreviewActive = false
+
     private val _previewFrames = MutableSharedFlow<ByteArray>(replay = 1, extraBufferCapacity = 8)
     val previewFrames: SharedFlow<ByteArray> = _previewFrames
 
@@ -453,13 +458,27 @@ class GlassesManager private constructor(private val ctx: Context) {
             Cmd.MEDIA_LIST -> {
                 runCatching {
                     val list = gson.fromJson(node.dataAsString, MediaList::class.java)
-                    _mediaList.emit(list.files)
+                    if (pendingMediaListType == "record") {
+                        _audioList.emit(list.files)
+                    } else {
+                        _mediaList.emit(list.files)
+                    }
                 }.onFailure {
                     _aiStatus.emit("AI photo state: ${node.data.toHexDump()}")
+                    _aiTriggers.emit(Unit)
                 }
             }
             Cmd.AI_AUDIO_STATE, Cmd.PREVIEW_STATE -> {
-                _aiStatus.emit("AI audio state: ${node.data.toHexDump()}")
+                if (videoPreviewActive) {
+                    AppLogger.d(TAG, "Preview state: ${node.data.toHexDump()}")
+                } else {
+                    _aiStatus.emit("AI audio state: ${node.data.toHexDump()}")
+                    _aiTriggers.emit(Unit)
+                    conn?.send(PacketBuilder.requestMediaCount())
+                    requestMediaList("photo")
+                    delay(250)
+                    requestMediaList("record")
+                }
             }
             Cmd.CAMERA_RESULT -> {
                 val ok = node.data.firstOrNull()?.toInt() == 0
@@ -495,9 +514,22 @@ class GlassesManager private constructor(private val ctx: Context) {
     fun sendBatteryRequest()    = conn?.send(PacketBuilder.requestBattery())
     fun sendTimeSync()          = conn?.send(PacketBuilder.syncDatetime())
     fun sendMediaCountRequest() = conn?.send(PacketBuilder.requestMediaCount())
-    fun sendMediaListRequest(page: Int = 0) = conn?.send(PacketBuilder.requestMediaList(page))
-    fun startPreview()          = conn?.send(PacketBuilder.startPreview())
-    fun stopPreview()           = conn?.send(PacketBuilder.stopPreview())
+    fun sendMediaListRequest(page: Int = 0, type: String = "photo") {
+        pendingMediaListType = type
+        conn?.send(PacketBuilder.requestMediaList(page, type = type))
+    }
+    private fun requestMediaList(type: String) {
+        pendingMediaListType = type
+        conn?.send(PacketBuilder.requestMediaList(type = type))
+    }
+    fun startPreview() {
+        videoPreviewActive = true
+        conn?.send(PacketBuilder.startPreview())
+    }
+    fun stopPreview() {
+        videoPreviewActive = false
+        conn?.send(PacketBuilder.stopPreview())
+    }
     fun deleteMedia(id: String) = conn?.send(PacketBuilder.deleteMedia(id))
     fun downloadMedia(id: String) = conn?.send(PacketBuilder.downloadMedia(id))
     fun reboot()                = conn?.send(PacketBuilder.reboot())

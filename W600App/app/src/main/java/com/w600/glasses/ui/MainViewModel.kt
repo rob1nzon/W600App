@@ -18,6 +18,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val battery: StateFlow<BatteryInfo?> = manager.battery
     val mediaCount: StateFlow<MediaCount?> = manager.mediaCount
     val mediaList: StateFlow<List<MediaFile>> = manager.mediaList
+    val audioList: StateFlow<List<MediaFile>> = manager.audioList
     val previewFrames: SharedFlow<ByteArray> = manager.previewFrames
     val aiFrames: SharedFlow<ByteArray> = manager.aiFrames
     val aiStatus: StateFlow<String> = manager.aiStatus
@@ -37,7 +38,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun syncTime() = manager.sendTimeSync()
-    fun loadMediaList(page: Int = 0) = manager.sendMediaListRequest(page)
+    fun loadMediaList(page: Int = 0) = manager.sendMediaListRequest(page, "photo")
+    fun loadAudioList(page: Int = 0) = manager.sendMediaListRequest(page, "record")
     fun startPreview() = manager.startPreview()
     fun stopPreview() = manager.stopPreview()
     fun deleteMedia(id: String) = manager.deleteMedia(id)

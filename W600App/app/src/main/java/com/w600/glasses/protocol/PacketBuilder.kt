@@ -181,8 +181,8 @@ object PacketBuilder {
             payload = byteArrayOf(if (success) 1 else 0)
         ).toBytes()
 
-    fun requestMediaList(page: Int = 0, pageSize: Int = 20): ByteArray {
-        val json = """{"page":$page,"page_size":$pageSize,"type":"photo"}"""
+    fun requestMediaList(page: Int = 0, pageSize: Int = 20, type: String = "photo"): ByteArray {
+        val json = """{"page":$page,"page_size":$pageSize,"type":"$type"}"""
         return writeJson(Cmd.MEDIA_LIST, json)
     }
 

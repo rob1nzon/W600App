@@ -25,7 +25,7 @@ object Cmd {
     // Media / Camera
     const val PREVIEW_STATE   = "5711"
     const val AI_AUDIO_STATE  = "5710"
-    const val PREVIEW_TOGGLE  = "5720"
+    const val PREVIEW_TOGGLE  = "5710"
     const val SD_CAPACITY     = "5712"
     const val MEDIA_COUNT     = "5713"
     const val MEDIA_LIST      = "5720"
