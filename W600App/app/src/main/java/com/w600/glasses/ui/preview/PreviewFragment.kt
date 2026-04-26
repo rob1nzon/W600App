@@ -29,8 +29,6 @@ class PreviewFragment : Fragment() {
     private var previewJob: Job? = null
     private var isPreviewing = false
     private var codec: MediaCodec? = null
-    private var codecWidth = 160
-    private var codecHeight = 120
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, s: Bundle?): View {
         _binding = FragmentPreviewBinding.inflate(inflater, container, false)
@@ -55,11 +53,6 @@ class PreviewFragment : Fragment() {
             viewModel.deviceInfo.collectLatest { info ->
                 info?.let {
                     binding.tvResolution.text = "Preview: ${it.previewW}×${it.previewH}"
-                    if (codecWidth != it.previewW || codecHeight != it.previewH) {
-                        codecWidth = it.previewW
-                        codecHeight = it.previewH
-                        releaseCodec()
-                    }
                 }
             }
         }
@@ -71,7 +64,7 @@ class PreviewFragment : Fragment() {
         viewModel.startPreview()
 
         previewJob = viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.previewFrames.collect { frameData ->
+            viewModel.previewFrames.collectLatest { frameData ->
                 renderFrame(frameData)
             }
         }
@@ -153,7 +146,7 @@ class PreviewFragment : Fragment() {
 
     private fun setupCodec(surface: Surface): MediaCodec? {
         return try {
-            val fmt = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, codecWidth, codecHeight)
+            val fmt = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, 480, 360)
             fmt.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 128 * 1024)
             MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).also {
                 it.configure(fmt, surface, null, 0)

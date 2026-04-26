@@ -294,8 +294,12 @@ class GlassesManager private constructor(private val ctx: Context) {
         scope.launch {
             val videoFrameCache = ByteArrayOutputStream()
             val aiFrameCache = ByteArrayOutputStream()
+            val fileTransferCache = ByteArrayOutputStream()
             c.rawFrames.collect { pkt ->
                 when (pkt.head) {
+                    Head.FILE_TRANSFER -> {
+                        handleFileTransferPacket(pkt, fileTransferCache)
+                    }
                     Head.CAMERA_PREVIEW -> {
                         if (pkt.payload.isNotEmpty()) {
                             _previewFrames.emit(pkt.payload)
@@ -309,6 +313,27 @@ class GlassesManager private constructor(private val ctx: Context) {
                     }
                 }
             }
+        }
+    }
+
+    private suspend fun handleFileTransferPacket(
+        pkt: SppPacket,
+        cache: ByteArrayOutputStream
+    ) {
+        val payload = collectDividedPayload(pkt, cache) ?: return
+        cache.write(payload)
+        val bytes = cache.toByteArray()
+        val jpeg = extractJpeg(bytes)
+        if (jpeg != null) {
+            AppLogger.d(TAG, "Downloaded JPEG frame=${jpeg.size}")
+            _aiStatus.emit("Downloaded photo: ${jpeg.size} bytes")
+            _aiFrames.emit(jpeg)
+            cache.reset()
+            return
+        }
+        if (bytes.size > 2 * 1024 * 1024) {
+            AppLogger.w(TAG, "File transfer cache reset at ${bytes.size} bytes without JPEG")
+            cache.reset()
         }
     }
 
@@ -371,6 +396,14 @@ class GlassesManager private constructor(private val ctx: Context) {
         return payload.copyOfRange(5, end)
     }
 
+    private fun extractJpeg(payload: ByteArray): ByteArray? {
+        val start = payload.indexOfSequence(byteArrayOf(0xFF.toByte(), 0xD8.toByte()))
+        if (start < 0) return null
+        val end = payload.indexOfSequence(byteArrayOf(0xFF.toByte(), 0xD9.toByte()), start + 2)
+        if (end < 0) return null
+        return payload.copyOfRange(start, end + 2)
+    }
+
     private suspend fun handleAiPreviewPacket(
         c: GlassesConnection,
         pkt: SppPacket,
@@ -416,8 +449,14 @@ class GlassesManager private constructor(private val ctx: Context) {
     }
 
     private fun ByteArray.indexOfSequence(needle: ByteArray): Int {
+        return indexOfSequence(needle, 0)
+    }
+
+    private fun ByteArray.indexOfSequence(needle: ByteArray, fromIndex: Int): Int {
         if (needle.isEmpty() || size < needle.size) return -1
-        for (i in 0..(size - needle.size)) {
+        val start = fromIndex.coerceAtLeast(0)
+        if (start > size - needle.size) return -1
+        for (i in start..(size - needle.size)) {
             var matches = true
             for (j in needle.indices) {
                 if (this[i + j] != needle[j]) {

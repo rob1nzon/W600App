@@ -20,6 +20,7 @@ class AiCaptureFragment : Fragment() {
     private var _binding: FragmentAiCaptureBinding? = null
     private val binding get() = _binding!!
     private val viewModel: MainViewModel by activityViewModels()
+    private var requestedDownloadId: String? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, s: Bundle?): View {
         _binding = FragmentAiCaptureBinding.inflate(inflater, container, false)
@@ -63,7 +64,14 @@ class AiCaptureFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.mediaList.collectLatest { files ->
-                binding.tvLatestPhoto.text = "Latest photo: ${files.firstOrNull().format()}"
+                val latest = files.firstOrNull()
+                binding.tvLatestPhoto.text = "Latest photo: ${latest.format()}"
+                val id = latest?.fileId.orEmpty()
+                if (id.isNotEmpty() && requestedDownloadId != id) {
+                    requestedDownloadId = id
+                    binding.tvPhotoMeta.text = "Downloading latest photo..."
+                    viewModel.downloadMedia(id)
+                }
             }
         }
 
