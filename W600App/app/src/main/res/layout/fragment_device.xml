@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Device info card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Device"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="8dp"/>
+
+                <TextView android:id="@+id/tv_device_name"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textSize="20sp" android:textStyle="bold" android:text="—"/>
+                <TextView android:id="@+id/tv_model"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Model: —"/>
+                <TextView android:id="@+id/tv_firmware"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Firmware: —"/>
+                <TextView android:id="@+id/tv_mac"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" android:text="MAC: —"/>
+                <TextView android:id="@+id/tv_screen"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Screen: —"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Battery card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                <TextView
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Battery" android:textSize="16sp" android:textStyle="bold"
+                    android:paddingBottom="8dp"/>
+                <TextView android:id="@+id/tv_battery"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Battery: —" android:textSize="18sp"/>
+                <ProgressBar
+                    android:id="@+id/battery_bar"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:max="100" android:progress="0" android:layout_marginTop="4dp"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Storage card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                <TextView
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Storage" android:textSize="16sp" android:textStyle="bold"
+                    android:paddingBottom="8dp"/>
+                <TextView android:id="@+id/tv_storage"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Storage: —"/>
+                <ProgressBar
+                    android:id="@+id/storage_bar"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:max="100" android:progress="0" android:layout_marginTop="4dp"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Media counts card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                <TextView
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Media" android:textSize="16sp" android:textStyle="bold"
+                    android:paddingBottom="8dp"/>
+                <TextView android:id="@+id/tv_photos"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Photos: —"/>
+                <TextView android:id="@+id/tv_videos"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Videos: —"/>
+                <TextView android:id="@+id/tv_records"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Recordings: —"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Actions -->
+        <Button android:id="@+id/btn_refresh"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Refresh Info" android:layout_marginBottom="8dp"/>
+        <Button android:id="@+id/btn_sync_time"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Sync Time" android:layout_marginBottom="8dp"/>
+        <Button android:id="@+id/btn_reboot"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Reboot Glasses" android:layout_marginBottom="8dp"
+            style="@style/Widget.Material3.Button.OutlinedButton"/>
+        <Button android:id="@+id/btn_power_off"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Power Off" android:layout_marginBottom="8dp"
+            style="@style/Widget.Material3.Button.OutlinedButton"/>
+        <Button android:id="@+id/btn_disconnect"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Disconnect"/>
+
+    </LinearLayout>
+</ScrollView>

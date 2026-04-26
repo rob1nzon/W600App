@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/scanFragment">
+
+    <fragment
+        android:id="@+id/scanFragment"
+        android:name="com.w600.glasses.ui.scan.ScanFragment"
+        android:label="Connect">
+        <action android:id="@+id/action_scan_to_device"
+            app:destination="@id/deviceFragment"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/deviceFragment"
+        android:name="com.w600.glasses.ui.device.DeviceFragment"
+        android:label="Device"/>
+
+    <fragment
+        android:id="@+id/mediaFragment"
+        android:name="com.w600.glasses.ui.media.MediaFragment"
+        android:label="Media"/>
+
+    <fragment
+        android:id="@+id/previewFragment"
+        android:name="com.w600.glasses.ui.preview.PreviewFragment"
+        android:label="Preview"/>
+
+    <fragment
+        android:id="@+id/aiCaptureFragment"
+        android:name="com.w600.glasses.ui.ai.AiCaptureFragment"
+        android:label="AI"/>
+
+    <fragment
+        android:id="@+id/logFragment"
+        android:name="com.w600.glasses.ui.log.LogFragment"
+        android:label="Logs"/>
+
+</navigation>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item android:id="@+id/action_refresh"
+        android:title="Refresh"
+        android:icon="@android:drawable/ic_menu_rotate"
+        app:showAsAction="ifRoom"/>
+    <item android:id="@+id/action_logs"
+        android:title="Logs"
+        android:icon="@android:drawable/ic_menu_info_details"
+        app:showAsAction="ifRoom"/>
+    <item android:id="@+id/action_sync_time"
+        android:title="Sync Time"/>
+    <item android:id="@+id/action_disconnect"
+        android:title="Disconnect"/>
+</menu>

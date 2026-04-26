@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/scanFragment"
+        android:title="Connect"
+        android:icon="@drawable/ic_bt"/>
+    <item android:id="@+id/deviceFragment"
+        android:title="Device"
+        android:icon="@drawable/ic_info"/>
+    <item android:id="@+id/mediaFragment"
+        android:title="Media"
+        android:icon="@drawable/ic_photo"/>
+    <item android:id="@+id/previewFragment"
+        android:title="Preview"
+        android:icon="@drawable/ic_camera"/>
+    <item android:id="@+id/aiCaptureFragment"
+        android:title="AI"
+        android:icon="@drawable/ic_photo"/>
+    <item android:id="@+id/logFragment"
+        android:title="Logs"
+        android:icon="@drawable/ic_log"/>
+</menu>
