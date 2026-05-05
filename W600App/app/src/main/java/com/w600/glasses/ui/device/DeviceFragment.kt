@@ -8,8 +8,11 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
+import com.w600.glasses.R
 import com.w600.glasses.databinding.FragmentDeviceBinding
 import com.w600.glasses.model.BatteryInfo
+import com.w600.glasses.model.ConnectionState
 import com.w600.glasses.model.DeviceInfo
 import com.w600.glasses.ui.MainViewModel
 import kotlinx.coroutines.flow.collectLatest
@@ -47,7 +50,22 @@ class DeviceFragment : Fragment() {
                 .show()
         }
         binding.btnDisconnect.setOnClickListener { viewModel.disconnect() }
+        binding.btnOpenPreview.setOnClickListener { navigate(R.id.previewFragment) }
+        binding.btnOpenAi.setOnClickListener { navigate(R.id.aiCaptureFragment) }
+        binding.btnOpenMedia.setOnClickListener { navigate(R.id.mediaFragment) }
+        binding.btnOpenLogs.setOnClickListener { navigate(R.id.logFragment) }
 
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.connectionState.collectLatest { state ->
+                binding.tvConnection.text = when (state) {
+                    is ConnectionState.Connected -> "Connection: ${state.deviceName}"
+                    is ConnectionState.Connecting -> "Connection: connecting to ${state.deviceName}"
+                    is ConnectionState.Error -> "Connection: error: ${state.message}"
+                    ConnectionState.Disconnected -> "Connection: disconnected"
+                    is ConnectionState.Scanning -> "Connection: scanning"
+                }
+            }
+        }
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.deviceInfo.collectLatest { info -> info?.let { updateDeviceInfo(it) } }
         }
@@ -91,6 +109,12 @@ class DeviceFragment : Fragment() {
             bytes >= 1_048_576    -> "${"%.1f".format(bytes / 1_048_576.0)} MB"
             bytes >= 1024         -> "${"%.1f".format(bytes / 1024.0)} KB"
             else                  -> "$bytes B"
+        }
+    }
+
+    private fun navigate(destination: Int) {
+        if (findNavController().currentDestination?.id != destination) {
+            findNavController().navigate(destination)
         }
     }
 

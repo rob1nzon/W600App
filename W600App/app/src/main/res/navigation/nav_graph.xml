@@ -15,7 +15,7 @@
     <fragment
         android:id="@+id/deviceFragment"
         android:name="com.w600.glasses.ui.device.DeviceFragment"
-        android:label="Device"/>
+        android:label="Home"/>
 
     <fragment
         android:id="@+id/mediaFragment"

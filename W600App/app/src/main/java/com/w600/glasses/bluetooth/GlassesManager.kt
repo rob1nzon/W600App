@@ -321,9 +321,7 @@ class GlassesManager private constructor(private val ctx: Context) {
         cache: ByteArrayOutputStream
     ) {
         val payload = collectDividedPayload(pkt, cache) ?: return
-        cache.write(payload)
-        val bytes = cache.toByteArray()
-        val jpeg = extractJpeg(bytes)
+        val jpeg = extractJpeg(payload)
         if (jpeg != null) {
             AppLogger.d(TAG, "Downloaded JPEG frame=${jpeg.size}")
             _aiStatus.emit("Downloaded photo: ${jpeg.size} bytes")
@@ -331,8 +329,8 @@ class GlassesManager private constructor(private val ctx: Context) {
             cache.reset()
             return
         }
-        if (bytes.size > 2 * 1024 * 1024) {
-            AppLogger.w(TAG, "File transfer cache reset at ${bytes.size} bytes without JPEG")
+        if (payload.size > 2 * 1024 * 1024) {
+            AppLogger.w(TAG, "File transfer payload ignored at ${payload.size} bytes without JPEG")
             cache.reset()
         }
     }

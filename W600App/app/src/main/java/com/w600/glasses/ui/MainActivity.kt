@@ -80,7 +80,6 @@ class MainActivity : AppCompatActivity() {
                     is ConnectionState.Connected -> {
                         supportActionBar?.subtitle = "Connected: ${state.deviceName}"
                         binding.bottomNav.menu.findItem(R.id.deviceFragment)?.isEnabled = true
-                        binding.bottomNav.menu.findItem(R.id.mediaFragment)?.isEnabled = true
                         binding.bottomNav.menu.findItem(R.id.previewFragment)?.isEnabled = true
                         binding.bottomNav.menu.findItem(R.id.aiCaptureFragment)?.isEnabled = true
                     }

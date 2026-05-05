@@ -9,7 +9,22 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Device info card -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="W600 Console"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:paddingBottom="4dp"/>
+
+        <TextView
+            android:id="@+id/tv_connection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Connection: -"
+            android:textSize="13sp"
+            android:paddingBottom="12dp"/>
+
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -115,7 +130,38 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Actions -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Workflows"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="8dp"/>
+                <Button android:id="@+id/btn_open_preview"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Open Preview" android:layout_marginBottom="8dp"/>
+                <Button android:id="@+id/btn_open_ai"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Open AI Photo / Audio" android:layout_marginBottom="8dp"/>
+                <Button android:id="@+id/btn_open_media"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Open Media Files" android:layout_marginBottom="8dp"/>
+                <Button android:id="@+id/btn_open_logs"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Open Logs"
+                    style="@style/Widget.Material3.Button.OutlinedButton"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <Button android:id="@+id/btn_refresh"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:text="Refresh Info" android:layout_marginBottom="8dp"/>
