@@ -297,7 +297,7 @@ class GlassesManager private constructor(private val ctx: Context) {
             val fileTransferCache = ByteArrayOutputStream()
             c.rawFrames.collect { pkt ->
                 when (pkt.head) {
-                    Head.FILE_TRANSFER -> {
+                    Head.FILE_TRANSFER, Head.PHOTO_LIB -> {
                         handleFileTransferPacket(pkt, fileTransferCache)
                     }
                     Head.CAMERA_PREVIEW -> {
@@ -321,6 +321,7 @@ class GlassesManager private constructor(private val ctx: Context) {
         cache: ByteArrayOutputStream
     ) {
         val payload = collectDividedPayload(pkt, cache) ?: return
+        AppLogger.d(TAG, "File transfer packet complete head=0x${pkt.head.toString(16)} payload=${payload.size}")
         val jpeg = extractJpeg(payload)
         if (jpeg != null) {
             AppLogger.d(TAG, "Downloaded JPEG frame=${jpeg.size}")
@@ -495,6 +496,7 @@ class GlassesManager private constructor(private val ctx: Context) {
             Cmd.MEDIA_LIST -> {
                 runCatching {
                     val list = gson.fromJson(node.dataAsString, MediaList::class.java)
+                    AppLogger.d(TAG, "Media list type=$pendingMediaListType total=${list.total} files=${list.files.size}")
                     if (pendingMediaListType == "record") {
                         _audioList.emit(list.files)
                     } else {
@@ -508,6 +510,17 @@ class GlassesManager private constructor(private val ctx: Context) {
                         _aiTriggers.emit(Unit)
                     }
                 }
+            }
+            Cmd.MEDIA_DOWNLOAD -> {
+                AppLogger.d(TAG, "Media download response fmt=${node.dataFmt} hex=${node.data.toHexDump()}")
+                _aiStatus.emit("Download response: ${node.data.toHexDump()}")
+            }
+            Cmd.MEDIA_PROGRESS -> {
+                AppLogger.d(TAG, "Media download progress fmt=${node.dataFmt} hex=${node.data.toHexDump()}")
+                _aiStatus.emit("Download progress: ${node.data.toHexDump()}")
+            }
+            Cmd.MEDIA_LIB_A, Cmd.MEDIA_LIB_B, Cmd.MEDIA_LIB_B1, Cmd.MEDIA_LIB_C -> {
+                AppLogger.d(TAG, "Media library node urn=${node.urn} fmt=${node.dataFmt} len=${node.data.size}")
             }
             Cmd.AI_AUDIO_STATE, Cmd.PREVIEW_STATE -> {
                 if (videoPreviewActive) {
@@ -572,7 +585,10 @@ class GlassesManager private constructor(private val ctx: Context) {
         conn?.send(PacketBuilder.stopPreview())
     }
     fun deleteMedia(id: String) = conn?.send(PacketBuilder.deleteMedia(id))
-    fun downloadMedia(id: String) = conn?.send(PacketBuilder.downloadMedia(id))
+    fun downloadMedia(id: String) {
+        AppLogger.d(TAG, "Request media download id=$id")
+        conn?.send(PacketBuilder.downloadMedia(id))
+    }
     fun reboot()                = conn?.send(PacketBuilder.reboot())
     fun powerOff()              = conn?.send(PacketBuilder.powerOff())
 

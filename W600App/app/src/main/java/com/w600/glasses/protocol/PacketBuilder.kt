@@ -190,7 +190,7 @@ object PacketBuilder {
         writeJson(Cmd.MEDIA_DELETE, """{"file_id":"$fileId"}""")
 
     fun downloadMedia(fileId: String): ByteArray =
-        writeJson(Cmd.MEDIA_DOWNLOAD, """{"file_id":"$fileId"}""")
+        writeJson(Cmd.MEDIA_DOWNLOAD, """{"file_id":"$fileId","file_name":"$fileId"}""")
 
     fun setLanguage(lang: String = "en"): ByteArray =
         write(Cmd.LANGUAGE, DataFmt.PLAIN_TXT, lang.toByteArray(Charsets.UTF_8))

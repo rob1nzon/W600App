@@ -66,7 +66,7 @@ class AiCaptureFragment : Fragment() {
             viewModel.mediaList.collectLatest { files ->
                 val latest = files.firstOrNull()
                 binding.tvLatestPhoto.text = "Latest photo: ${latest.format()}"
-                val id = latest?.fileId.orEmpty()
+                val id = latest?.fileId?.ifEmpty { latest.fileName }.orEmpty()
                 if (id.isNotEmpty() && requestedDownloadId != id) {
                     requestedDownloadId = id
                     binding.tvPhotoMeta.text = "Downloading latest photo..."
