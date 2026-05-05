@@ -501,8 +501,12 @@ class GlassesManager private constructor(private val ctx: Context) {
                         _mediaList.emit(list.files)
                     }
                 }.onFailure {
-                    _aiStatus.emit("AI photo state: ${node.data.toHexDump()}")
-                    _aiTriggers.emit(Unit)
+                    if (videoPreviewActive) {
+                        AppLogger.d(TAG, "Preview 5720 state: ${node.data.toHexDump()}")
+                    } else {
+                        _aiStatus.emit("AI photo state: ${node.data.toHexDump()}")
+                        _aiTriggers.emit(Unit)
+                    }
                 }
             }
             Cmd.AI_AUDIO_STATE, Cmd.PREVIEW_STATE -> {
