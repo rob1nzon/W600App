@@ -59,6 +59,9 @@ class AiCaptureFragment : Fragment() {
             viewModel.mediaCount.collectLatest { count ->
                 if (count != null) {
                     binding.tvAudioMeta.text = "Recordings: ${count.records}"
+                    if (count.records == 0) {
+                        binding.tvLatestAudio.text = "Latest audio: no recordings on glasses"
+                    }
                 }
             }
         }
@@ -87,9 +90,14 @@ class AiCaptureFragment : Fragment() {
 
     private fun refreshMediaLists() {
         viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.refresh()
             viewModel.loadMediaList(0)
             delay(300)
-            viewModel.loadAudioList(0)
+            if ((viewModel.mediaCount.value?.records ?: 0) > 0) {
+                viewModel.loadAudioList(0)
+            } else {
+                binding.tvLatestAudio.text = "Latest audio: no recordings on glasses"
+            }
         }
     }
 
