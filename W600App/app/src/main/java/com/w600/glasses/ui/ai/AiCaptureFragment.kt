@@ -46,6 +46,7 @@ class AiCaptureFragment : Fragment() {
                 if (bitmap != null) {
                     binding.ivAiPhoto.setImageBitmap(bitmap)
                     binding.tvPhotoHint.visibility = View.GONE
+                    refreshMediaLists()
                 } else {
                     binding.tvPhotoHint.visibility = View.VISIBLE
                     binding.tvPhotoHint.text = "AI packet received. This packet is not a JPEG photo; checking media list."

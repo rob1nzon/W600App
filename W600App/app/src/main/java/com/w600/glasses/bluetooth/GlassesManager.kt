@@ -56,6 +56,7 @@ class GlassesManager private constructor(private val ctx: Context) {
     private val _audioList = MutableStateFlow<List<MediaFile>>(emptyList())
     val audioList: StateFlow<List<MediaFile>> = _audioList
     private var pendingMediaListType = "photo"
+    private val pendingMediaListTypes = ArrayDeque<String>()
     private var videoPreviewActive = false
 
     private val _previewFrames = MutableSharedFlow<ByteArray>(replay = 1, extraBufferCapacity = 8)
@@ -528,15 +529,32 @@ class GlassesManager private constructor(private val ctx: Context) {
                 }
             }
             Cmd.MEDIA_LIST -> {
-                runCatching {
-                    val list = gson.fromJson(node.dataAsString, MediaList::class.java)
-                    AppLogger.d(TAG, "Media list type=$pendingMediaListType total=${list.total} files=${list.files.size}")
-                    if (pendingMediaListType == "record") {
-                        _audioList.emit(list.files)
-                    } else {
-                        _mediaList.emit(list.files)
+                val requestedType = if (pendingMediaListTypes.isNotEmpty()) {
+                    pendingMediaListTypes.removeFirst()
+                } else {
+                    null
+                }
+                if (requestedType != null) {
+                    runCatching {
+                        val list = gson.fromJson(node.dataAsString, MediaList::class.java)
+                        AppLogger.d(TAG, "Media list type=$requestedType total=${list.total} files=${list.files.size}")
+                        if (requestedType == "record") {
+                            _audioList.emit(list.files)
+                        } else {
+                            _mediaList.emit(list.files)
+                        }
+                    }.onFailure {
+                        AppLogger.d(
+                            TAG,
+                            "Media list type=$requestedType parse failed fmt=${node.dataFmt} hex=${node.data.toHexDump()}"
+                        )
+                        if (requestedType == "record") {
+                            _audioList.emit(emptyList())
+                        } else {
+                            _mediaList.emit(emptyList())
+                        }
                     }
-                }.onFailure {
+                } else {
                     if (videoPreviewActive) {
                         AppLogger.d(TAG, "Preview 5720 state: ${node.data.toHexDump()}")
                     } else {
@@ -604,10 +622,12 @@ class GlassesManager private constructor(private val ctx: Context) {
     fun sendMediaCountRequest() = conn?.send(PacketBuilder.requestMediaCount())
     fun sendMediaListRequest(page: Int = 0, type: String = "photo") {
         pendingMediaListType = type
+        pendingMediaListTypes.addLast(type)
         conn?.send(PacketBuilder.requestMediaList(page, type = type))
     }
     private fun requestMediaList(type: String) {
         pendingMediaListType = type
+        pendingMediaListTypes.addLast(type)
         conn?.send(PacketBuilder.requestMediaList(type = type))
     }
     fun startPreview() {
