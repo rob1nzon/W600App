@@ -39,6 +39,15 @@ object Cmd {
     const val MEDIA_LIB_C     = "5770"
     const val MUSIC_CTRL      = "5410"
 
+    // LensMoo AppPhotoLibrary protocol
+    const val PHOTO_NAMES         = "7200"
+    const val PHOTO_ELEMENT       = "7300"
+    const val PHOTO_ELEMENT_COUNT = "7310"
+    const val PHOTO_COUNT         = "7320"
+    const val PHOTO_DELETE        = "7400"
+    const val PHOTO_END           = "7500"
+    const val PHOTO_TOTAL_COUNT   = "7600"
+
     // Unknown handshake
     const val HANDSHAKE_7100  = "7100"
     const val HANDSHAKE_7110  = "7110"

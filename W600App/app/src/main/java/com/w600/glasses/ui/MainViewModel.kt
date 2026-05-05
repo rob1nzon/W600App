@@ -44,6 +44,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun stopPreview() = manager.stopPreview()
     fun deleteMedia(id: String) = manager.deleteMedia(id)
     fun downloadMedia(id: String) = manager.downloadMedia(id)
+    fun importPhotosFromGlasses() = manager.importPhotosFromGlasses()
     fun reboot() = manager.reboot()
     fun powerOff() = manager.powerOff()
 }

@@ -3,7 +3,11 @@ package com.w600.glasses.bluetooth
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.content.ContentValues
 import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import com.google.gson.Gson
 import com.w600.glasses.util.AppLogger
 import com.w600.glasses.model.*
@@ -12,8 +16,12 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.selects.select
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private const val TAG = "GlassesManager"
 private const val DEFAULT_BIND_USER_ID = "1f05e668d4e76858a2ca175e29755b86"
@@ -58,6 +66,15 @@ class GlassesManager private constructor(private val ctx: Context) {
     private var pendingMediaListType = "photo"
     private val pendingMediaListTypes = ArrayDeque<String>()
     private var videoPreviewActive = false
+    private var pendingDownloadFileName: String? = null
+    private var photoImportActive = false
+    private var photoImportNames = emptyList<String>()
+    private var photoImportNameIndex = 0
+    private var photoImportElementIndex = 0
+    private var photoImportElementCount = 0
+    private var photoImportFrameType = 0
+    private var photoImportFrameLen = 0
+    private val photoImportJpegData = ByteArrayOutputStream()
 
     private val _previewFrames = MutableSharedFlow<ByteArray>(replay = 1, extraBufferCapacity = 8)
     val previewFrames: SharedFlow<ByteArray> = _previewFrames
@@ -298,8 +315,11 @@ class GlassesManager private constructor(private val ctx: Context) {
             val fileTransferCache = ByteArrayOutputStream()
             c.rawFrames.collect { pkt ->
                 when (pkt.head) {
-                    Head.FILE_TRANSFER, Head.PHOTO_LIB -> {
+                    Head.FILE_TRANSFER -> {
                         handleFileTransferPacket(pkt, fileTransferCache)
+                    }
+                    Head.PHOTO_LIB -> {
+                        handlePhotoLibraryPacket(c, pkt, fileTransferCache)
                     }
                     Head.CAMERA_PREVIEW -> {
                         if (pkt.payload.isNotEmpty()) {
@@ -326,8 +346,11 @@ class GlassesManager private constructor(private val ctx: Context) {
         val jpeg = extractJpeg(payload)
         if (jpeg != null) {
             AppLogger.d(TAG, "Downloaded JPEG frame=${jpeg.size}")
-            _aiStatus.emit("Downloaded photo: ${jpeg.size} bytes")
+            val file = savePhoto(jpeg, pendingDownloadFileName)
+            _events.emit("Saved photo: ${file.name}")
+            _aiStatus.emit("Saved photo: ${file.absolutePath}")
             _aiFrames.emit(jpeg)
+            pendingDownloadFileName = null
             cache.reset()
             return
         }
@@ -335,6 +358,184 @@ class GlassesManager private constructor(private val ctx: Context) {
             AppLogger.w(TAG, "File transfer payload ignored at ${payload.size} bytes without JPEG")
             cache.reset()
         }
+    }
+
+    private suspend fun handlePhotoLibraryPacket(
+        c: GlassesConnection,
+        pkt: SppPacket,
+        cache: ByteArrayOutputStream
+    ) {
+        val frame = collectPhotoLibraryFrame(pkt, cache) ?: return
+        AppLogger.d(
+            TAG,
+            "Photo library frame type=${frame.type} declared=${frame.declaredLen} data=${frame.data.size}"
+        )
+        val names = parsePhotoNames(frame.data)
+        if (names.isNotEmpty()) {
+            photoImportNames = names.asReversed()
+            photoImportNameIndex = 0
+            photoImportElementIndex = 0
+            photoImportElementCount = 0
+            photoImportJpegData.reset()
+            _events.emit("Found ${names.size} photos on glasses")
+            c.send(PacketBuilder.photoLibraryAck(pkt.cmdOrder, true))
+            delay(500)
+            requestCurrentPhotoElementCount()
+            return
+        }
+
+        photoImportJpegData.write(frame.data)
+        val accumulated = photoImportJpegData.toByteArray()
+        val jpeg = extractJpeg(accumulated)
+        val lastElement = photoImportElementCount <= 0 || photoImportElementIndex >= photoImportElementCount
+        if (jpeg != null && lastElement) {
+            val fileName = currentImportPhotoName()
+            val file = savePhoto(jpeg, fileName)
+            _aiFrames.emit(jpeg)
+            _aiStatus.emit("Saved photo: ${file.absolutePath}")
+            _events.emit("Saved photo: ${file.name}")
+            photoImportJpegData.reset()
+        } else {
+            AppLogger.d(TAG, "Photo element accumulated=${accumulated.size} jpeg=${jpeg?.size ?: 0} last=$lastElement")
+            if (photoImportElementCount <= 0) {
+                _events.emit("Photo packet received but no JPEG found")
+                c.send(PacketBuilder.photoLibraryAck(pkt.cmdOrder, false))
+                return
+            }
+        }
+        c.send(PacketBuilder.photoLibraryAck(pkt.cmdOrder, true))
+        advancePhotoImport()
+    }
+
+    private data class PhotoLibraryFrame(
+        val type: Int,
+        val declaredLen: Int,
+        val data: ByteArray
+    )
+
+    private fun collectPhotoLibraryFrame(
+        pkt: SppPacket,
+        cache: ByteArrayOutputStream
+    ): PhotoLibraryFrame? {
+        val payload = stripChunkIndex(pkt.payload)
+        return when (pkt.divideType.toInt() and 0xFF) {
+            DivideType.SINGLE -> parsePhotoLibraryFrame(payload)
+            DivideType.FIRST -> {
+                val header = parsePhotoLibraryHeader(payload) ?: return null
+                photoImportFrameType = header.first
+                photoImportFrameLen = header.second
+                cache.reset()
+                cache.write(payload, 5, payload.size - 5)
+                null
+            }
+            DivideType.MIDDLE -> {
+                cache.write(payload)
+                null
+            }
+            DivideType.LAST -> {
+                cache.write(payload)
+                PhotoLibraryFrame(
+                    type = if (photoImportFrameType == 0) 9 else 2,
+                    declaredLen = photoImportFrameLen,
+                    data = cache.toByteArray()
+                ).also { cache.reset() }
+            }
+            else -> null
+        }
+    }
+
+    private fun parsePhotoLibraryFrame(payload: ByteArray): PhotoLibraryFrame? {
+        val header = parsePhotoLibraryHeader(payload) ?: return null
+        return PhotoLibraryFrame(
+            type = if (header.first == 0) 9 else 2,
+            declaredLen = header.second,
+            data = payload.copyOfRange(5, payload.size)
+        )
+    }
+
+    private fun parsePhotoLibraryHeader(payload: ByteArray): Pair<Int, Int>? {
+        if (payload.size < 5) return null
+        val mediaType = payload[0].toInt() and 0xFF
+        val frameLen = ByteBuffer.wrap(payload, 1, 4).order(ByteOrder.LITTLE_ENDIAN).int
+        return mediaType to frameLen
+    }
+
+    private fun parsePhotoNames(data: ByteArray): List<String> {
+        val text = String(data, Charsets.UTF_8).trim('\u0000', ' ', '\n', '\r', '\t')
+        if (text.isBlank()) return emptyList()
+
+        runCatching {
+            val array = gson.fromJson(text, Array<String>::class.java)
+            if (array != null && array.isNotEmpty()) return array.filter { it.isNotBlank() }
+        }
+
+        return text
+            .split('\u0000', '\n', '\r', ',', ';', '|')
+            .map { it.trim().trim('"') }
+            .filter { it.isNotBlank() && (it.endsWith(".jpg", true) || it.endsWith(".jpeg", true)) }
+            .distinct()
+    }
+
+    private fun savePhoto(jpeg: ByteArray, preferredName: String? = null): File {
+        val fallback = "W600_${SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())}.jpg"
+        val cleaned = preferredName
+            ?.substringAfterLast('/')
+            ?.substringAfterLast('\\')
+            ?.replace(Regex("[^A-Za-z0-9._-]"), "_")
+            ?.takeIf { it.isNotBlank() }
+            ?: fallback
+        val baseName = if (cleaned.endsWith(".jpg", true) || cleaned.endsWith(".jpeg", true)) {
+            cleaned
+        } else {
+            "$cleaned.jpg"
+        }
+
+        val appDir = File(ctx.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: ctx.filesDir, "W600")
+        appDir.mkdirs()
+        var appFile = File(appDir, baseName)
+        var index = 1
+        while (appFile.exists()) {
+            val stem = baseName.substringBeforeLast('.', baseName)
+            val ext = baseName.substringAfterLast('.', "jpg")
+            appFile = File(appDir, "${stem}_$index.$ext")
+            index++
+        }
+        appFile.writeBytes(jpeg)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, appFile.name)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/W600")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+            val resolver = ctx.contentResolver
+            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            if (uri != null) {
+                resolver.openOutputStream(uri)?.use { it.write(jpeg) }
+                values.clear()
+                values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+                AppLogger.i(TAG, "Published photo to gallery Pictures/W600/${appFile.name}")
+            }
+            AppLogger.i(TAG, "Saved photo ${appFile.absolutePath} bytes=${jpeg.size}")
+            return appFile
+        }
+
+        val baseDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+        val dir = File(baseDir, "W600")
+        dir.mkdirs()
+        var out = File(dir, appFile.name)
+        index = 1
+        while (out.exists()) {
+            val stem = appFile.name.substringBeforeLast('.', appFile.name)
+            val ext = appFile.name.substringAfterLast('.', "jpg")
+            out = File(dir, "${stem}_$index.$ext")
+            index++
+        }
+        out.writeBytes(jpeg)
+        AppLogger.i(TAG, "Saved photo ${out.absolutePath} bytes=${jpeg.size}")
+        return out
     }
 
     private suspend fun handleVideoPreviewPacket(
@@ -574,6 +775,51 @@ class GlassesManager private constructor(private val ctx: Context) {
             Cmd.MEDIA_LIB_A, Cmd.MEDIA_LIB_B, Cmd.MEDIA_LIB_B1, Cmd.MEDIA_LIB_C -> {
                 AppLogger.d(TAG, "Media library node urn=${node.urn} fmt=${node.dataFmt} len=${node.data.size}")
             }
+            Cmd.PHOTO_NAMES -> {
+                AppLogger.d(TAG, "Photo names response: ${node.data.toHexDump()}")
+                if (node.data.firstOrNull()?.toInt() == 0) {
+                    _events.emit("Photo list request accepted")
+                }
+            }
+            Cmd.PHOTO_ELEMENT_COUNT -> {
+                val count = readLittleEndianInt(node.data)
+                AppLogger.d(TAG, "Photo element count request response count=$count hex=${node.data.toHexDump()}")
+                if (photoImportActive) {
+                    if (count > 0) {
+                        photoImportElementCount = count
+                        photoImportElementIndex = 1
+                        photoImportJpegData.reset()
+                        _events.emit("Importing ${currentImportPhotoName()}: $count chunks")
+                        conn?.send(PacketBuilder.requestPhotoElement(photoImportElementIndex))
+                    } else {
+                        skipCurrentImportPhoto("empty count: ${node.data.toHexDump()}")
+                    }
+                }
+            }
+            Cmd.PHOTO_ELEMENT -> {
+                AppLogger.d(TAG, "Photo element request response: ${node.data.toHexDump()}")
+                val result = node.data.firstOrNull()?.toInt()?.and(0xFF) ?: 0
+                if (photoImportActive && result != 0) {
+                    skipCurrentImportPhoto("chunk rejected: ${node.data.toHexDump()}")
+                }
+            }
+            Cmd.PHOTO_COUNT, Cmd.PHOTO_TOTAL_COUNT -> {
+                val count = readLittleEndianInt(node.data)
+                AppLogger.d(TAG, "Photo element count node=${node.urn} count=$count hex=${node.data.toHexDump()}")
+                if (photoImportActive && count > 0) {
+                    photoImportElementCount = count
+                    photoImportElementIndex = 1
+                    photoImportJpegData.reset()
+                    _events.emit("Importing ${currentImportPhotoName()}: $count chunks")
+                    conn?.send(PacketBuilder.requestPhotoElement(photoImportElementIndex))
+                }
+            }
+            Cmd.PHOTO_END -> {
+                AppLogger.d(TAG, "Photo import end response: ${node.data.toHexDump()}")
+            }
+            Cmd.PHOTO_DELETE -> {
+                AppLogger.d(TAG, "Photo delete response: ${node.data.toHexDump()}")
+            }
             Cmd.AI_AUDIO_STATE, Cmd.PREVIEW_STATE -> {
                 if (videoPreviewActive) {
                     AppLogger.d(TAG, "Preview state: ${node.data.toHexDump()}")
@@ -614,6 +860,77 @@ class GlassesManager private constructor(private val ctx: Context) {
         }
     }
 
+    private fun readLittleEndianInt(data: ByteArray): Int {
+        return when {
+            data.size >= 4 -> ByteBuffer.wrap(data, 0, 4).order(ByteOrder.LITTLE_ENDIAN).int
+            data.size == 2 -> ByteBuffer.wrap(byteArrayOf(data[0], data[1], 0, 0)).order(ByteOrder.LITTLE_ENDIAN).int
+            data.isNotEmpty() -> data[0].toInt() and 0xFF
+            else -> 0
+        }
+    }
+
+    private fun currentImportPhotoName(): String? =
+        photoImportNames.getOrNull(photoImportNameIndex)
+
+    private fun requestCurrentPhotoElementCount() {
+        val name = currentImportPhotoName()
+        if (name == null) {
+            finishPhotoImport()
+            return
+        }
+        AppLogger.d(TAG, "Request photo element count name=$name")
+        scope.launch { _events.emit("Requesting photo: $name") }
+        conn?.send(PacketBuilder.requestPhotoElementCount(name))
+    }
+
+    private fun skipCurrentImportPhoto(reason: String) {
+        val name = currentImportPhotoName()
+        AppLogger.w(TAG, "Skip photo ${name ?: "<none>"}: $reason")
+        scope.launch { _events.emit("Skip ${name ?: "photo"}: $reason") }
+        photoImportJpegData.reset()
+        photoImportNameIndex++
+        photoImportElementIndex = 0
+        photoImportElementCount = 0
+        if (photoImportNameIndex < photoImportNames.size) {
+            scope.launch {
+                delay(150)
+                requestCurrentPhotoElementCount()
+            }
+        } else {
+            finishPhotoImport()
+        }
+    }
+
+    private fun advancePhotoImport() {
+        if (!photoImportActive) return
+        photoImportElementIndex++
+        if (photoImportElementIndex <= photoImportElementCount) {
+            AppLogger.d(TAG, "Request next photo element index=$photoImportElementIndex")
+            conn?.send(PacketBuilder.requestPhotoElement(photoImportElementIndex))
+            return
+        }
+        photoImportNameIndex++
+        photoImportElementIndex = 0
+        photoImportElementCount = 0
+        photoImportJpegData.reset()
+        if (photoImportNameIndex < photoImportNames.size) {
+            scope.launch {
+                delay(150)
+                requestCurrentPhotoElementCount()
+            }
+        } else {
+            finishPhotoImport()
+        }
+    }
+
+    private fun finishPhotoImport() {
+        if (!photoImportActive) return
+        photoImportActive = false
+        AppLogger.d(TAG, "Photo import complete")
+        conn?.send(PacketBuilder.endPhotoLibraryImport())
+        scope.launch { _events.emit("Photo import complete") }
+    }
+
     // ── Public commands ──────────────────────────────────────────────────────
 
     fun sendDeviceInfoRequest() = conn?.send(PacketBuilder.requestDeviceInfo())
@@ -641,7 +958,18 @@ class GlassesManager private constructor(private val ctx: Context) {
     fun deleteMedia(id: String) = conn?.send(PacketBuilder.deleteMedia(id))
     fun downloadMedia(id: String) {
         AppLogger.d(TAG, "Request media download id=$id")
+        pendingDownloadFileName = _mediaList.value.firstOrNull { it.fileId == id }?.fileName ?: id
         conn?.send(PacketBuilder.downloadMedia(id))
+    }
+    fun importPhotosFromGlasses() {
+        AppLogger.d(TAG, "Request photo library import")
+        photoImportActive = true
+        photoImportNames = emptyList()
+        photoImportNameIndex = 0
+        photoImportElementIndex = 0
+        photoImportElementCount = 0
+        photoImportJpegData.reset()
+        conn?.send(PacketBuilder.requestPhotoLibraryNames())
     }
     fun reboot()                = conn?.send(PacketBuilder.reboot())
     fun powerOff()              = conn?.send(PacketBuilder.powerOff())

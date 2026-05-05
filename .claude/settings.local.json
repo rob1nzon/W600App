@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(adb connect:*)",
+      "Bash(find /Users/veedo/w600/W600App/app/src -name *.kt)"
+    ]
+  }
+}

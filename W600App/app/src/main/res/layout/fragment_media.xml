@@ -19,7 +19,23 @@
             android:text="Photos: —  Videos: —"
             android:textSize="13sp"/>
 
+        <Button
+            android:id="@+id/btn_import_photos"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="36dp"
+            android:text="Import Photos"
+            android:textSize="12sp"/>
+
     </LinearLayout>
+
+    <Button
+        android:id="@+id/btn_saved_photos"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="40dp"
+        android:text="Saved Photos"
+        android:textSize="13sp"/>
 
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipe_refresh"

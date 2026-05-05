@@ -9,6 +9,7 @@ object PacketBuilder {
 
     /** Global sequential cmdOrder shared by ALL phone packets (requests + ACKs): 0, 1, 2, 3, ... */
     fun nextSeq(): Byte = (seq.getAndIncrement() and 0xFF).toByte()
+    private fun currentSeq(): Byte = (seq.get() and 0xFF).toByte()
     private fun nextPkgId() = (pkgId.getAndIncrement() % 0x7FFF).toShort()
 
     /** Wrap NodeData items in an SPP packet with head=0x30, cmdId=0x0001 */
@@ -65,7 +66,7 @@ object PacketBuilder {
 
     /** EXECUTE with no data */
     fun execute(urn: String) =
-        nodePacket(ActionType.EXECUTE, NodeData(urn, DataFmt.NODATA.toByte(), ByteArray(0)))
+        nodePacket(ActionType.EXECUTE, NodeData(urn, DataFmt.BIN.toByte(), ByteArray(0)))
 
     /** EXECUTE with binary data */
     fun executeBin(urn: String, data: ByteArray) =
@@ -191,6 +192,31 @@ object PacketBuilder {
 
     fun downloadMedia(fileId: String): ByteArray =
         writeJson(Cmd.MEDIA_DOWNLOAD, """{"file_id":"$fileId","file_name":"$fileId"}""")
+
+    fun requestPhotoLibraryNames(): ByteArray =
+        executeBin(Cmd.PHOTO_NAMES, byteArrayOf(0))
+
+    fun requestPhotoElementCount(name: String): ByteArray =
+        write(Cmd.PHOTO_ELEMENT_COUNT, DataFmt.BIN, name.toByteArray(Charsets.UTF_8))
+
+    fun requestPhotoElement(index: Int): ByteArray =
+        write(Cmd.PHOTO_ELEMENT, DataFmt.BIN, byteArrayOf(index.toByte()))
+
+    fun endPhotoLibraryImport(): ByteArray =
+        executeBin(Cmd.PHOTO_END, byteArrayOf(0))
+
+    fun photoLibraryAck(deviceDataCmdOrder: Byte, success: Boolean = true): ByteArray =
+        SppPacket(
+            head = Head.PHOTO_LIB,
+            // LensMoo sends 0x4A/0x0009 with the current phone command index and
+            // does not advance it. The following 7310/7300 node request reuses
+            // the same order value, which the glasses appear to require before
+            // accepting photo element requests.
+            cmdOrder = currentSeq(),
+            cmdId = 0x0009.toShort(),
+            dividePayloadLen = 0,
+            payload = byteArrayOf(if (success) 1 else 0)
+        ).toBytes()
 
     fun setLanguage(lang: String = "en"): ByteArray =
         write(Cmd.LANGUAGE, DataFmt.PLAIN_TXT, lang.toByteArray(Charsets.UTF_8))

@@ -1,10 +1,13 @@
 package com.w600.glasses.ui.media
 
 import android.app.AlertDialog
+import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.os.Environment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -17,6 +20,7 @@ import com.w600.glasses.model.MediaFile
 import com.w600.glasses.ui.MainViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.io.File
 
 class MediaFragment : Fragment() {
 
@@ -56,6 +60,13 @@ class MediaFragment : Fragment() {
             currentPage++
             viewModel.loadMediaList(currentPage)
         }
+        binding.btnImportPhotos.setOnClickListener {
+            viewModel.importPhotosFromGlasses()
+            Toast.makeText(requireContext(), "Importing photos from glasses…", Toast.LENGTH_SHORT).show()
+        }
+        binding.btnSavedPhotos.setOnClickListener {
+            showSavedPhotos()
+        }
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.mediaCount.collectLatest { mc ->
@@ -74,11 +85,62 @@ class MediaFragment : Fragment() {
             }
         }
 
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.events.collectLatest { event ->
+                Toast.makeText(requireContext(), event, Toast.LENGTH_SHORT).show()
+            }
+        }
+
         // Auto-load
         viewModel.loadMediaList(0)
     }
 
     override fun onDestroyView() { super.onDestroyView(); _binding = null }
+
+    private fun showSavedPhotos() {
+        val files = savedPhotoFiles()
+        if (files.isEmpty()) {
+            Toast.makeText(requireContext(), "No saved photos yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle("Saved photos")
+            .setItems(files.map { it.name }.toTypedArray()) { _, which ->
+                showPhoto(files[which])
+            }
+            .show()
+    }
+
+    private fun showPhoto(file: File) {
+        val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+        if (bitmap == null) {
+            Toast.makeText(requireContext(), "Can't open ${file.name}", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val image = ImageView(requireContext()).apply {
+            setImageBitmap(bitmap)
+            adjustViewBounds = true
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(12, 12, 12, 12)
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle(file.name)
+            .setView(image)
+            .setPositiveButton("Close", null)
+            .show()
+    }
+
+    private fun savedPhotoFiles(): List<File> {
+        val dirs = listOfNotNull(
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "W600"),
+            requireContext().getExternalFilesDir(Environment.DIRECTORY_PICTURES)?.let { File(it, "W600") }
+        )
+        return dirs
+            .flatMap { dir -> dir.listFiles()?.toList().orEmpty() }
+            .filter { it.isFile && (it.extension.equals("jpg", true) || it.extension.equals("jpeg", true)) }
+            .distinctBy { it.name }
+            .sortedByDescending { it.lastModified() }
+    }
 }
 
 class MediaAdapter(
