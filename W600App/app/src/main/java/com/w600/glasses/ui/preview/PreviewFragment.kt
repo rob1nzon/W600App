@@ -29,6 +29,9 @@ class PreviewFragment : Fragment() {
     private var previewJob: Job? = null
     private var isPreviewing = false
     private var codec: MediaCodec? = null
+    private var codecWidth = 160
+    private var codecHeight = 120
+    private var canDecodeH264 = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, s: Bundle?): View {
         _binding = FragmentPreviewBinding.inflate(inflater, container, false)
@@ -53,6 +56,11 @@ class PreviewFragment : Fragment() {
             viewModel.deviceInfo.collectLatest { info ->
                 info?.let {
                     binding.tvResolution.text = "Preview: ${it.previewW}×${it.previewH}"
+                    if (codecWidth != it.previewW || codecHeight != it.previewH) {
+                        codecWidth = it.previewW
+                        codecHeight = it.previewH
+                        releaseCodec()
+                    }
                 }
             }
         }
@@ -124,12 +132,23 @@ class PreviewFragment : Fragment() {
     private fun decodeH264Frame(data: ByteArray) {
         val surface = _binding?.surfaceView?.holder?.surface ?: return
         if (!surface.isValid) return
+
+        val nalTypes = nalTypes(data)
+        if (!canDecodeH264) {
+            canDecodeH264 = nalTypes.any { it == 7 || it == 5 }
+            if (!canDecodeH264) return
+        }
+
         val c = codec ?: setupCodec(surface) ?: return
         try {
             val idx = c.dequeueInputBuffer(10_000L)
             if (idx >= 0) {
                 val buf = c.getInputBuffer(idx) ?: return
                 buf.clear()
+                if (data.size > buf.remaining()) {
+                    releaseCodec()
+                    return
+                }
                 buf.put(data)
                 c.queueInputBuffer(idx, 0, data.size, System.nanoTime() / 1000, 0)
             }
@@ -146,7 +165,7 @@ class PreviewFragment : Fragment() {
 
     private fun setupCodec(surface: Surface): MediaCodec? {
         return try {
-            val fmt = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, 480, 360)
+            val fmt = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, codecWidth, codecHeight)
             fmt.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 128 * 1024)
             MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).also {
                 it.configure(fmt, surface, null, 0)
@@ -164,6 +183,7 @@ class PreviewFragment : Fragment() {
             runCatching { it.release() }
         }
         codec = null
+        canDecodeH264 = false
     }
 
     private fun fitCenter(sourceWidth: Int, sourceHeight: Int, targetWidth: Int, targetHeight: Int): Rect {
@@ -184,6 +204,30 @@ class PreviewFragment : Fragment() {
     private fun isH264(data: ByteArray): Boolean =
         data.size >= 5 && data[0] == 0.toByte() && data[1] == 0.toByte() &&
             data[2] == 0.toByte() && data[3] == 1.toByte()
+
+    private fun nalTypes(data: ByteArray): Set<Int> {
+        val types = mutableSetOf<Int>()
+        var i = 0
+        while (i <= data.size - 5) {
+            val startCodeLength = when {
+                data[i] == 0.toByte() && data[i + 1] == 0.toByte() &&
+                    data[i + 2] == 0.toByte() && data[i + 3] == 1.toByte() -> 4
+                data[i] == 0.toByte() && data[i + 1] == 0.toByte() &&
+                    data[i + 2] == 1.toByte() -> 3
+                else -> 0
+            }
+            if (startCodeLength > 0) {
+                val headerIndex = i + startCodeLength
+                if (headerIndex < data.size) {
+                    types.add(data[headerIndex].toInt() and 0x1F)
+                }
+                i = headerIndex + 1
+            } else {
+                i++
+            }
+        }
+        return types
+    }
 
     override fun onDestroyView() {
         stopPreview()
