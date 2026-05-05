@@ -416,7 +416,7 @@ class GlassesManager private constructor(private val ctx: Context) {
         pkt: SppPacket,
         cache: ByteArrayOutputStream
     ) {
-        val frame = collectDividedPayload(pkt, cache)
+        val frame = collectIndexedDividedPayload(pkt, cache)
         if (frame != null) {
             val extracted = extractVideoPreviewFrame(frame)
             AppLogger.d(TAG, "AI preview packet payload=${frame.size} frame=${extracted.size}")
@@ -432,6 +432,27 @@ class GlassesManager private constructor(private val ctx: Context) {
             (pkt.divideType.toInt() and 0xFF) != DivideType.MIDDLE
         ) {
             c.send(PacketBuilder.previewFrameAck(pkt.head, false))
+        }
+    }
+
+    private fun collectIndexedDividedPayload(pkt: SppPacket, cache: ByteArrayOutputStream): ByteArray? {
+        val payload = stripChunkIndex(pkt.payload)
+        return when (pkt.divideType.toInt() and 0xFF) {
+            DivideType.SINGLE -> payload
+            DivideType.FIRST -> {
+                cache.reset()
+                cache.write(payload)
+                null
+            }
+            DivideType.MIDDLE -> {
+                cache.write(payload)
+                null
+            }
+            DivideType.LAST -> {
+                cache.write(payload)
+                cache.toByteArray().also { cache.reset() }
+            }
+            else -> null
         }
     }
 
