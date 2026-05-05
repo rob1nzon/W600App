@@ -343,7 +343,7 @@ class GlassesManager private constructor(private val ctx: Context) {
     ) {
         when (pkt.divideType.toInt() and 0xFF) {
             DivideType.SINGLE -> {
-                val frame = extractVideoPreviewFrame(pkt.payload)
+                val frame = extractVideoPreviewFrame(stripChunkIndex(pkt.payload))
                 AppLogger.d(TAG, "Video preview packet single payload=${pkt.payload.size} frame=${frame.size}")
                 if (frame.isNotEmpty()) {
                     _previewFrames.emit(frame)
@@ -352,15 +352,15 @@ class GlassesManager private constructor(private val ctx: Context) {
             }
             DivideType.FIRST -> {
                 cache.reset()
-                cache.write(pkt.payload)
+                cache.write(stripChunkIndex(pkt.payload))
                 AppLogger.d(TAG, "Video preview packet first payload=${pkt.payload.size}")
             }
             DivideType.MIDDLE -> {
-                cache.write(pkt.payload)
+                cache.write(stripChunkIndex(pkt.payload))
                 AppLogger.d(TAG, "Video preview packet middle payload=${pkt.payload.size}")
             }
             DivideType.LAST -> {
-                cache.write(pkt.payload)
+                cache.write(stripChunkIndex(pkt.payload))
                 val combined = cache.toByteArray()
                 val frame = extractVideoPreviewFrame(combined)
                 AppLogger.d(TAG, "Video preview packet last payload=${pkt.payload.size} total=${combined.size} frame=${frame.size}")
@@ -377,6 +377,14 @@ class GlassesManager private constructor(private val ctx: Context) {
                 c.send(PacketBuilder.previewFrameAck(pkt.head, false))
             }
         }
+    }
+
+    private fun stripChunkIndex(payload: ByteArray): ByteArray {
+        if (payload.size <= 4) return payload
+        val chunkIndex = ByteBuffer.wrap(payload, 0, 4)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .int
+        return if (chunkIndex in 0..4096) payload.copyOfRange(4, payload.size) else payload
     }
 
     private fun extractVideoPreviewFrame(payload: ByteArray): ByteArray {

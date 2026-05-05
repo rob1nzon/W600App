@@ -4,8 +4,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Rect
 import android.media.MediaCodec
-import android.media.MediaCodecInfo
-import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -210,7 +208,7 @@ class PreviewFragment : Fragment() {
             fmt.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 128 * 1024)
             fmt.setByteBuffer("csd-0", ByteBuffer.wrap(sps))
             fmt.setByteBuffer("csd-1", ByteBuffer.wrap(pps))
-            createAvcDecoder().also {
+            MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).also {
                 it.configure(fmt, surface, null, 0)
                 it.start()
                 codec = it
@@ -220,29 +218,6 @@ class PreviewFragment : Fragment() {
             AppLogger.e(TAG, "H264 codec start failed", err)
             null
         }
-    }
-
-    private fun createAvcDecoder(): MediaCodec {
-        val softwareDecoder = MediaCodecList(MediaCodecList.REGULAR_CODECS)
-            .codecInfos
-            .asSequence()
-            .filter { !it.isEncoder && it.supportedTypes.any { type -> type.equals(MediaFormat.MIMETYPE_VIDEO_AVC, ignoreCase = true) } }
-            .firstOrNull { info ->
-                val name = info.name.lowercase()
-                name.contains("c2.android") || name.contains("omx.google") || isSoftwareOnly(info)
-            }
-
-        return if (softwareDecoder != null) {
-            AppLogger.d(TAG, "Using software AVC decoder ${softwareDecoder.name}")
-            MediaCodec.createByCodecName(softwareDecoder.name)
-        } else {
-            AppLogger.w(TAG, "Software AVC decoder not found; using default decoder")
-            MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
-        }
-    }
-
-    private fun isSoftwareOnly(info: MediaCodecInfo): Boolean {
-        return android.os.Build.VERSION.SDK_INT >= 29 && info.isSoftwareOnly
     }
 
     private fun releaseCodec() {
