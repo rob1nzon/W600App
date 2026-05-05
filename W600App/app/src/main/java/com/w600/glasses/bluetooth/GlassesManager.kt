@@ -418,15 +418,20 @@ class GlassesManager private constructor(private val ctx: Context) {
     ) {
         val frame = collectIndexedDividedPayload(pkt, cache)
         if (frame != null) {
-            val extracted = extractVideoPreviewFrame(frame)
-            AppLogger.d(TAG, "AI preview packet payload=${frame.size} frame=${extracted.size}")
-            if (extracted.isNotEmpty()) {
-                _aiFrames.emit(extracted)
-                _aiStatus.emit("AI photo packet: ${extracted.size} bytes")
+            val jpeg = extractJpeg(frame)
+            AppLogger.d(
+                TAG,
+                "AI preview packet cmdId=${pkt.cmdId.toInt() and 0xFFFF} payload=${frame.size} jpeg=${jpeg?.size ?: 0}"
+            )
+            if (jpeg != null) {
+                _aiFrames.emit(jpeg)
+                _aiStatus.emit("AI photo packet: ${jpeg.size} bytes")
                 _aiTriggers.emit(Unit)
                 c.send(PacketBuilder.previewFrameAck(pkt.head, true))
                 return
             }
+            c.send(PacketBuilder.previewFrameAck(pkt.head, true))
+            return
         }
         if ((pkt.divideType.toInt() and 0xFF) != DivideType.FIRST &&
             (pkt.divideType.toInt() and 0xFF) != DivideType.MIDDLE
